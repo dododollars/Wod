@@ -23,12 +23,6 @@
   const FETCHALL_TIMEOUT = 2*60*1000; //清包的超时时间
   const FETCHALL_INTERVAL = 1000; //清包的检测文本间隔时间,不能大于3秒
 
-
-
-
-
-
-
   let entry_main = []; // int[]
   let entry_team = []; // [{id：int, text:string, nowRow:int, row:int:[]}]
   let entry_hero = []; // [{id：int, name:string}]
@@ -39,9 +33,6 @@
   let scriptStartTime = 0;
   let ifActive = false;
   let sign = "";
-
-
-
 
   const STORAGE_KEY_TIME_MINI = "entry_time_mini";
   const STORAGE_KEY_TIME_MAIN = "entry_time_main";
@@ -890,7 +881,8 @@
         log4js("检测到新文本,结算成功!!!即将删除DateStr清包后并刷新页面", result);
         try {
           clickButtonByName("fetchAll");
-          const disappeared = waitTillAwesomeTipsFinish(FETCHALL_TIMEOUT);
+          await sleep(FETCHALL_INTERVAL);
+          const disappeared = await waitTillAwesomeTipsFinish(FETCHALL_TIMEOUT);
           //console.log("清包成功", disappeared);
         } catch (error) {
           console.error("清包失败:", error);
@@ -902,7 +894,9 @@
         console.error("操作失败:", error);
         try {
           clickButtonByName("fetchAll");
-          const disappeared = waitTillAwesomeTipsFinish(FETCHALL_TIMEOUT);
+	  await sleep(FETCHALL_INTERVAL);
+          const disappeared = await waitTillAwesomeTipsFinish(FETCHALL_TIMEOUT);
+		  
           //console.log("清包成功", disappeared);
         } catch (error) {
           console.error("清包失败:", error);
