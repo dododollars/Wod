@@ -2,8 +2,10 @@
 // @name         WOD分团队自动激活
 // @namespace    https://github.com/dododollars
 // @version      0.7.3
-// @description  读取英雄表并添加分组控制UI（主队独立管理）
+// @description  根据团队分组并自动激活插件
 // @author       DoDoDollars
+// @updateURL    https://github.com/dododollars/Wod/edit/main/wodAutoActivate.js
+// @downloadURL  https://github.com/dododollars/Wod/edit/main/wodAutoActivate.js
 // @grant        none
 // @match        http*://*.world-of-dungeons.org/wod/spiel/settings/heroes.php*
 // ==/UserScript==
@@ -1041,4 +1043,5 @@
     await main();
   }
   start();
+
 })();
