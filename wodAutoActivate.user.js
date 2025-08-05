@@ -4,8 +4,8 @@
 // @version      0.7.3
 // @description  根据团队分组并自动激活插件
 // @author       DoDoDollars
-// @updateURL    https://github.com/dododollars/Wod/edit/main/wodAutoActivate.js
-// @downloadURL  https://github.com/dododollars/Wod/edit/main/wodAutoActivate.js
+// @updateURL    https://github.com/dododollars/Wod/edit/main/wodAutoActivate.user.js
+// @downloadURL  https://github.com/dododollars/Wod/edit/main/wodAutoActivate.user.js
 // @grant        none
 // @match        http*://*.world-of-dungeons.org/wod/spiel/settings/heroes.php*
 // ==/UserScript==
@@ -1045,3 +1045,4 @@
   start();
 
 })();
+
