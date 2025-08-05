@@ -22,7 +22,7 @@
   const ACTIVE_RESERVE_TIME = 3*60*1000; //提前3分钟激活等待, 不能大于MAIN_TEAM_RESERVE_TIME主队等待时间的预留时间
   const FETCHALL_TIMEOUT = 2*60*1000; //清包的超时时间
   const FETCHALL_INTERVAL = 1000; //清包的检测文本间隔时间,不能大于3秒
-
+	
   let entry_main = []; // int[]
   let entry_team = []; // [{id：int, text:string, nowRow:int, row:int:[]}]
   let entry_hero = []; // [{id：int, name:string}]
@@ -881,7 +881,7 @@
         log4js("检测到新文本,结算成功!!!即将删除DateStr清包后并刷新页面", result);
         try {
           clickButtonByName("fetchAll");
-          await sleep(FETCHALL_INTERVAL);
+		  await sleep(FETCHALL_INTERVAL);
           const disappeared = await waitTillAwesomeTipsFinish(FETCHALL_TIMEOUT);
           //console.log("清包成功", disappeared);
         } catch (error) {
@@ -894,9 +894,8 @@
         console.error("操作失败:", error);
         try {
           clickButtonByName("fetchAll");
-	  await sleep(FETCHALL_INTERVAL);
-          const disappeared = await waitTillAwesomeTipsFinish(FETCHALL_TIMEOUT);
-		  
+          const disappeared = await aitTillAwesomeTipsFinish(FETCHALL_TIMEOUT);
+		  await sleep(FETCHALL_INTERVAL);
           //console.log("清包成功", disappeared);
         } catch (error) {
           console.error("清包失败:", error);
@@ -948,7 +947,7 @@
     log4js("删除成功");
   }
 
-  function waitForNextDungeonTime(interval = REFRESH_INTERVAL, timeout = 2*REQUEST_TIME_TIMEOUT) {
+  function waitForNextDungeonTime(interval = REQUEST_TIME_INTERVAL, timeout = 2*REQUEST_TIME_TIMEOUT) {
     return new Promise((resolve, reject) => {
       const el = document.querySelector("#gadgetNextdungeonTime");
       if (!el) return reject("元素 #gadgetNextdungeonTime 未找到");
