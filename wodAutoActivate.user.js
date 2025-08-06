@@ -122,7 +122,7 @@
     });
   }
 
-  const $h1 = document.querySelector("#clock.texttoken");
+  const $h1 = document.querySelector("#clock");
   if ($h1) {
     loadFromStorage();
 
@@ -1038,6 +1038,7 @@
   start();
 
 })();
+
 
 
 
