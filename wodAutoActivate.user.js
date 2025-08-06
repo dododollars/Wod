@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         WOD分团队自动激活
+// @name         WOD分团队自动激活testLog
 // @namespace    https://github.com/dododollars
-// @version      2025.08.05 test log
+// @version      2025.08.06
 // @description  根据团队分组并自动激活插件
 // @author       DoDoDollars
 // @updateURL    https://github.com/dododollars/Wod/raw/refs/heads/main/wodAutoActivate.user.js
@@ -1038,6 +1038,7 @@
   start();
 
 })();
+
 
 
 
