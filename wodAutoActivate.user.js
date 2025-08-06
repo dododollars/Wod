@@ -894,7 +894,7 @@
         console.error("操作失败:", error);
         try {
           clickButtonByName("fetchAll");
-          const disappeared = await aitTillAwesomeTipsFinish(FETCHALL_TIMEOUT);
+          const disappeared = await waitTillAwesomeTipsFinish(FETCHALL_TIMEOUT);
 		  await sleep(FETCHALL_INTERVAL);
           //console.log("清包成功", disappeared);
         } catch (error) {
@@ -1038,6 +1038,7 @@
   start();
 
 })();
+
 
 
 
