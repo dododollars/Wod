@@ -729,7 +729,7 @@
       async function handleMiniEntry(j) {
         if (j >= entry_time_mini.length) {
           entry_time_mini = sortEntriesByDate(entry_time_mini);
-          log4js("全部角色时间获取完成, entry_time_main, entry_time_main依次为:", entry_time_main, entry_time_main);
+          log4js("全部角色时间获取完成, entry_time_main, entry_time_mini依次为:", entry_time_main, entry_time_mini);
           let nextDungeon = getNextDungeon(entry_time_main, entry_time_mini);
 
           if (nextDungeon !== null) {
@@ -1038,6 +1038,7 @@
   start();
 
 })();
+
 
 
 
