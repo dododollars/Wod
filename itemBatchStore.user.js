@@ -193,41 +193,69 @@ console.log("detailText",detailText);
         .parent("select")
         .val("go_group_2");
       console.log("$itemTable2",$itemTable);
-     // ========== 新增：根据物品名称取消“放入团队仓库”勾选 ==========
-   const dataStr = localStorage.getItem("storeAllExcludeList");
-let list = [];
-try {
-  list = dataStr ? JSON.parse(dataStr) : [];
-} catch (e) {
-  console.error("解析出错", e);
-}
+      // ========== 新增：根据物品名称取消“放入团队仓库”勾选（数量限制） ==========
+      const dataStr = localStorage.getItem("storeAllExcludeList");
+      let list = [];
+      try {
+        list = dataStr ? JSON.parse(dataStr) : [];
+      } catch (e) {
+        console.error("解析出错", e);
+      }
 
-const heroEntry = list.find(e => e.hero === hero);
+      const heroEntry = list.find((e) => e.hero === hero);
+      const rawExclude = heroEntry && Array.isArray(heroEntry.item) ? heroEntry.item : [];
 
-// 获取对应的 item 数组，如果没有就返回空数组
-const excludeNames = heroEntry ? heroEntry.item : [];
-  if (excludeNames!==[]){
+      if (rawExclude && rawExclude.length > 0) {
+        // 规则：名称精确匹配，数量为需“保留在背包”的总数量上限
+        const ruleMap = {};
+        for (const def of rawExclude) {
+          if (!def) continue;
+          const [rawName, rawQty] = String(def).split("|");
+          const key = (rawName || "").trim();
+          if (!key) continue;
+          const qtyParsed = Number.parseInt((rawQty || "").trim(), 10);
+          const limit = Number.isFinite(qtyParsed) && qtyParsed >= 0 ? qtyParsed : Number.POSITIVE_INFINITY;
+          // 去重：同名仅保留一条（界面已覆盖更新，这里兜底）
+          ruleMap[key] = { limit, used: 0 };
+        }
 
-  // 使用原生 DOM 提升速度（基于 detailJq 的上下文）
-  const itemRows = $itemTable[0]?.querySelectorAll("tr");
-  if (itemRows) {
-    for (let i = 0; i < itemRows.length; i++) {
-      const row = itemRows[i];
-      const nameLink = row.querySelector('a[href*="item_instance_id"]');
-      if (!nameLink) continue;
+        // 使用原生 DOM 提升速度（基于 detailJq 的上下文）
+        const itemRows = $itemTable[0]?.querySelectorAll("tr");
+        if (itemRows && Object.keys(ruleMap).length > 0) {
+          for (let i = 0; i < itemRows.length; i++) {
+            const row = itemRows[i];
+            const nameLink = row.querySelector('a[href*="item_instance_id"]');
+            if (!nameLink) continue;
 
-      const itemName = nameLink.textContent.trim();
-      // 完全匹配
-      if (excludeNames.includes(itemName)) {
-        const check = row.querySelector('input[name^="SetGrpItem["]');
-        if (check && check.checked) {
-          check.checked = false;
+            const itemName = nameLink.textContent.trim(); // 精确匹配避免“A包含B”造成重复
+            const rule = ruleMap[itemName];
+            if (!rule) continue;
+
+            // 默认数量为1；若单元格文本中存在形如 (x/y) 则取 x
+            let unit = 1;
+            const nameCell = nameLink.closest("td");
+            if (nameCell) {
+              const cellText = nameCell.textContent.replace(/\s+/g, " ").trim();
+              const m = cellText.match(/\((\d+)\/(\d+)\)/);
+              if (m) {
+                const v = parseInt(m[1], 10);
+                if (Number.isFinite(v) && v > 0) unit = v;
+              }
+            }
+
+            // 已达上限则不再取消勾选；避免超额时也不取消该行（不能部分选择）
+            if (rule.used >= rule.limit) continue;
+            if (rule.used + unit <= rule.limit) {
+              const check = row.querySelector('input[name^="SetGrpItem["]');
+              if (check && check.checked) {
+                check.checked = false;
+                rule.used += unit;
+              }
+            }
+          }
         }
       }
-    }
-  }
-  }
-  // ========================================================
+      // ========================================================
       let $detailForm = detailJq.find('form[name="the_form"]');
       let detailParams = $detailForm.parseForm();
       console.log("detailParams",detailParams);
