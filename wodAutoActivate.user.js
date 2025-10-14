@@ -122,9 +122,11 @@
     });
   }
 
+  // 确保在任何可能的保存操作前优先加载已有持久化数据
+  loadFromStorage();
+
   const $h1 = document.querySelector("#clock");
   if ($h1) {
-    loadFromStorage();
 
     const $wrapper = document.createElement("div");
     $wrapper.style.marginLeft = "8px";
@@ -410,8 +412,10 @@
       rowNum++;
     }
 
-    saveToStorage();
+    // 仅持久化角色信息，避免误写入清空团队数据
+    localStorage.setItem(STORAGE_KEY_HERO, JSON.stringify(entry_hero));
     console.table(entry_hero);
+    return entry_hero;
   }
 
   function parseTime(text) {
@@ -853,16 +857,28 @@
   }
 
   function checkAndSaveHeroTable() {
-    const storedHero = loadFromStorage("HERO") || [];
-    const entryHeroFromPage = readHeroTable();
+    loadFromStorage("HERO");
+    const storedHero = Array.isArray(entry_hero) ? entry_hero : [];
+    const entryHeroFromPage = readHeroTable() || [];
     const mismatch = entryHeroFromPage.some((hero, idx) => {
       return !storedHero[idx] || hero.name !== storedHero[idx].name;
     });
 
     if (mismatch) {
-      const confirmReset = confirm("角色名称改变，脚本启动失败。点击确定清除全部存储内容，取消则终止。");
+      const confirmReset = confirm("角色名称改变，脚本启动失败。仅清除与角色相关的存储并保留团队设置。点击确定继续，取消则终止。");
       if (confirmReset) {
-        localStorage.clear();
+        const keysToRemove = [
+          STORAGE_KEY_TIME_MINI,
+          STORAGE_KEY_TIME_MAIN,
+          "WOD_LOG",
+          STORAGE_KEY_SIGN,
+          STORAGE_KEY_HERO,
+          STORAGE_KEY_MAIN,
+          STORAGE_KEY_PROXY,
+          STORAGE_KEY_SCRIPT,
+          STORAGE_KEY_STARTTIME
+        ];
+        keysToRemove.forEach(k => localStorage.removeItem(k));
       }
       return;
     }
