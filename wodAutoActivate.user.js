@@ -13,9 +13,9 @@
 (function () {
   'use strict';
   const GADGET_TIMEOUT = 10*1000; //gadgetNextdungeonTime页面元素加载超时时间10秒
-  const MAIN_TEAM_RESERVE_TIME = 5*60*1000; //若主队还有5分钟即将结算就等结算后再执行接下来操作
+  const MAIN_TEAM_RESERVE_TIME = 10*60*1000; //若主队还有10分钟即将结算就等结算后再执行接下来操作
   const RELOAD_WAIT_TIME = 3*1000; //页面刷新等待时间3秒
-  const SCRIPT_CHECK_TIME = 29*1000; //脚本执行间隔时间29秒
+  const SCRIPT_CHECK_TIME = 59*1000; //脚本执行间隔时间29秒
   const REQUEST_TIME_INTERVAL = 3*1000; //执行刷新请求寻找下一地城时间间隔
   const REQUEST_TIME_TIMEOUT = 2*MAIN_TEAM_RESERVE_TIME; //执行刷新请求寻找下一地城时间间隔
   const CHECK_BUTTON_TIME = 1000; //检查按下开始按钮的间隔时间1秒
@@ -1086,6 +1086,7 @@
   start();
 
 })();
+
 
 
 
