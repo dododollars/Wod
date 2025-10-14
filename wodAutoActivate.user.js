@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         WOD分团队自动激活testLog
 // @namespace    https://github.com/dododollars
-// @version      2025.08.07
-// @description  根据团队分组并自动激活插件
+// @version      2025.10.14
+// @description  根据团队分组并自动激活插件；修复偶发清空存储问题（team带备份与最小化清理）
 // @author       DoDoDollars
 // @updateURL    https://github.com/dododollars/Wod/raw/refs/heads/main/wodAutoActivate.user.js
 // @downloadURL  https://github.com/dododollars/Wod/raw/refs/heads/main/wodAutoActivate.user.js
@@ -37,6 +37,7 @@
   const STORAGE_KEY_TIME_MINI = "entry_time_mini";
   const STORAGE_KEY_TIME_MAIN = "entry_time_main";
   const STORAGE_KEY_TEAM = "wod_entry_team";
+  const STORAGE_KEY_TEAM_BACKUP = "wod_entry_team_backup"; // 自动备份，防误清空
   const STORAGE_KEY_HERO = "wod_entry_hero";
   const STORAGE_KEY_MAIN = "wod_entry_main";
   const STORAGE_KEY_PROXY = "wod_entry_proxy";
@@ -47,7 +48,23 @@
   function loadFromStorage(type) {
     try {
       if (!type || type === "TEAM") {
-        entry_team = JSON.parse(localStorage.getItem(STORAGE_KEY_TEAM) || '[]');
+        const teamRaw = localStorage.getItem(STORAGE_KEY_TEAM);
+        entry_team = JSON.parse(teamRaw || '[]');
+
+        // 若检测到被意外清空，尝试从备份恢复
+        if (Array.isArray(entry_team) && entry_team.length === 0) {
+          try {
+            const bakRaw = localStorage.getItem(STORAGE_KEY_TEAM_BACKUP);
+            const bak = JSON.parse(bakRaw || '[]');
+            if (Array.isArray(bak) && bak.length > 0) {
+              console.warn("wod_entry_team 为空，将从备份恢复");
+              entry_team = bak;
+              localStorage.setItem(STORAGE_KEY_TEAM, JSON.stringify(entry_team));
+            }
+          } catch (bakErr) {
+            console.warn("恢复 wod_entry_team 备份失败：", bakErr);
+          }
+        }
       }
     } catch (e) {
       console.warn("解析 entry_team 失败：", e);
@@ -100,11 +117,28 @@
     }
   }
 
-  function saveToStorage() {
-    localStorage.setItem(STORAGE_KEY_TEAM, JSON.stringify(entry_team));
-    localStorage.setItem(STORAGE_KEY_HERO, JSON.stringify(entry_hero));
-    localStorage.setItem(STORAGE_KEY_MAIN, JSON.stringify(entry_main));
-    localStorage.setItem(STORAGE_KEY_PROXY, JSON.stringify(entry_proxy));
+  function saveToStorage(partials) {
+    const opts = Object.assign({ team: true, hero: true, main: true, proxy: true }, partials || {});
+
+    if (opts.team) {
+      const teamJson = JSON.stringify(entry_team);
+      localStorage.setItem(STORAGE_KEY_TEAM, teamJson);
+      // 同步写入备份，防止后续被误覆盖
+      try {
+        localStorage.setItem(STORAGE_KEY_TEAM_BACKUP, teamJson);
+      } catch (e) {
+        console.warn("写入 wod_entry_team 备份失败：", e);
+      }
+    }
+    if (opts.hero) {
+      localStorage.setItem(STORAGE_KEY_HERO, JSON.stringify(entry_hero));
+    }
+    if (opts.main) {
+      localStorage.setItem(STORAGE_KEY_MAIN, JSON.stringify(entry_main));
+    }
+    if (opts.proxy) {
+      localStorage.setItem(STORAGE_KEY_PROXY, JSON.stringify(entry_proxy));
+    }
   }
 
   function populateSelect($select) {
@@ -227,7 +261,8 @@
         localStorage.setItem(STORAGE_KEY_MAIN, JSON.stringify(entry_main));
       }
 
-      localStorage.setItem(STORAGE_KEY_TEAM, JSON.stringify(entry_team));
+      // 保存 team 及备份
+      saveToStorage({ team: true, hero: false, main: false, proxy: false });
       refreshSelect();
     };
 
@@ -255,7 +290,8 @@
         entry_main = entry_main.filter(mid => mid !== id);
       }
 
-      saveToStorage();
+      // 仅保存主队标记，避免误写入 team
+      saveToStorage({ team: false, hero: false, main: true, proxy: false });
       refreshSelect();
       $select.value = id;
       updateBtnVisibility();
@@ -267,7 +303,8 @@
       if (!team) return;
 
       entry_main = (entry_main ?? []).filter(mainId => mainId !== id);
-      saveToStorage();
+      // 仅保存主队标记，避免误写入 team
+      saveToStorage({ team: false, hero: false, main: true, proxy: false });
       refreshSelect();
       $select.value = id;
       updateBtnVisibility();
@@ -350,7 +387,8 @@
       }
     }
 
-    saveToStorage();
+    // 仅保存 team 信息，避免覆盖其它存储
+    saveToStorage({ team: true, hero: false, main: false, proxy: false });
     console.table(entry_team);
   }
 
@@ -410,7 +448,8 @@
       rowNum++;
     }
 
-    saveToStorage();
+    // 仅保存 hero 列表，避免误覆盖 team
+    saveToStorage({ team: false, hero: true, main: false, proxy: false });
     console.table(entry_hero);
   }
 
@@ -853,7 +892,8 @@
   }
 
   function checkAndSaveHeroTable() {
-    const storedHero = loadFromStorage("HERO") || [];
+    loadFromStorage("HERO");
+    const storedHero = Array.isArray(entry_hero) ? entry_hero : [];
     const entryHeroFromPage = readHeroTable();
     const mismatch = entryHeroFromPage.some((hero, idx) => {
       return !storedHero[idx] || hero.name !== storedHero[idx].name;
@@ -862,7 +902,13 @@
     if (mismatch) {
       const confirmReset = confirm("角色名称改变，脚本启动失败。点击确定清除全部存储内容，取消则终止。");
       if (confirmReset) {
-        localStorage.clear();
+        // 仅清理与 Hero 对应的数据，避免误删 team
+        try { localStorage.removeItem(STORAGE_KEY_TIME_MINI); } catch(e){}
+        try { localStorage.removeItem(STORAGE_KEY_TIME_MAIN); } catch(e){}
+        try { localStorage.removeItem(STORAGE_KEY_HERO); } catch(e){}
+        try { localStorage.removeItem(STORAGE_KEY_MAIN); } catch(e){}
+        try { localStorage.removeItem(STORAGE_KEY_PROXY); } catch(e){}
+        // 不清理 STORAGE_KEY_TEAM 与其备份
       }
       return;
     }
@@ -1031,6 +1077,8 @@
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  // 注意：先加载存储，避免第一次运行时覆盖 team 数据
+  loadFromStorage();
   readHeroTable();
   async function start() {
     await main();
