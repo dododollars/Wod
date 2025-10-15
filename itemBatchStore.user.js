@@ -128,7 +128,7 @@
         let heroId = $row.find('td:first input[type="radio"]').val();
         heroes.push({ id: heroId, name: heroName });
       });
-    console.log(heroes);
+    //console.log(heroes);
 
     return heroes;
   };
@@ -153,14 +153,14 @@
     const text = await response.text();
     const jq = $(text);
     let params = jq.find('form[name="the_form"]').parseForm();
-    // console.log(params);
+    // //console.log(params);
     params["item_3usage_item"] = "yes";
     params["item_3group_item"] = "no";
     if (params["ITEMS_LAGER_PSNR[1]"] < 100) {
       params["ITEMS_LAGER_PSNR[1]"] = 100;
       params["ITEMS_LAGER_PSGO[1]"] = "√";
     }
-    console.log("params:",params);//dododo
+    //console.log("params:",params);//dododo
     let detail = await fetch(url, {
       headers: {
         accept:
@@ -173,10 +173,10 @@
     let detailText = await detail.text();
     let detailJq = $(detailText);
     let $itemTable = detailJq.find("#item_3is_open+table:first");
-console.log("detail",detail);
-console.log("detailText",detailText);
-    console.log("$itemTable",$itemTable);
-    console.log("detailJq",detailJq);
+//console.log("detail",detail);
+//console.log("detailText",detailText);
+    //console.log("$itemTable",$itemTable);
+    //console.log("detailJq",detailJq);
     let $pages = $itemTable.find(
       'input[name="dummy"], input[name^="ITEMS_LAGER_PAGE["]'
     );
@@ -192,7 +192,15 @@ console.log("detailText",detailText);
         .find('select[name^="EquipItem["] option[value="go_group_2"]')
         .parent("select")
         .val("go_group_2");
-      console.log("$itemTable2",$itemTable);
+      //console.log("$itemTable2",$itemTable);
+      
+      let $detailForm = detailJq.find('form[name="the_form"]');
+      let detailParams = $detailForm.parseForm();
+      //console.log("detailParams",detailParams);
+      detailParams["item_3usage_item"] = "yes";
+      detailParams["item_3group_item"] = "no";
+      detailParams["ok"] = "应用改动";
+      detailParams["dummy"] = "go_group_2";
       // ========== 新增：根据物品名称取消“放入团队仓库”勾选（数量限制） ==========
       const dataStr = localStorage.getItem("storeAllExcludeList");
       let list = [];
@@ -212,10 +220,13 @@ console.log("detailText",detailText);
           if (!def) continue;
           const [rawName, rawQty] = String(def).split("|");
           const key = (rawName || "").trim();
+
           if (!key) continue;
           const qtyParsed = Number.parseInt((rawQty || "").trim(), 10);
           const limit = Number.isFinite(qtyParsed) && qtyParsed >= 0 ? qtyParsed : Number.POSITIVE_INFINITY;
           // 去重：同名仅保留一条（界面已覆盖更新，这里兜底）
+          // 这里日志打印分割后的物品名跟数量
+          console.log(`[storeAllExcludeList] 物品名-上限数量:`, key, limit);
           ruleMap[key] = { limit, used: 0 };
         }
 
@@ -228,6 +239,7 @@ console.log("detailText",detailText);
             if (!nameLink) continue;
 
             const itemName = nameLink.textContent.trim(); // 精确匹配避免“A包含B”造成重复
+            console.log("itemName",itemName);
             const rule = ruleMap[itemName];
             if (!rule) continue;
 
@@ -243,32 +255,42 @@ console.log("detailText",detailText);
               }
             }
 
-            // 已达上限则不再取消勾选；避免超额时也不取消该行（不能部分选择）
-            if (rule.used >= rule.limit) continue;
-            if (rule.used + unit <= rule.limit) {
+            // 只处理 limit 不为0 的情况
+            // INSERT_YOUR_CODE
+            if (rule.limit === 0) {
+              // 如果limit为0，取消勾选
               const check = row.querySelector('input[name^="SetGrpItem["]');
               if (check && check.checked) {
                 check.checked = false;
-                rule.used += unit;
               }
+              continue;
+            }
+            if (rule.limit !== 0) {
+              // 已达上限则不再取消勾选；避免超额时也不取消该行（不能部分选择）
+              if (rule.used >= rule.limit) continue;
+              // INSERT_YOUR_CODE
+              if (rule.used < rule.limit) {
+                const check = row.querySelector('input[name^="SetGrpItem["]');
+                if (check && check.checked) {
+                  check.checked = false;
+                  rule.used += unit;
+                }
+              }
+              
             }
           }
         }
+        
+        
       }
       // ========================================================
-      let $detailForm = detailJq.find('form[name="the_form"]');
-      let detailParams = $detailForm.parseForm();
-      console.log("detailParams",detailParams);
-      detailParams["item_3usage_item"] = "yes";
-      detailParams["item_3group_item"] = "no";
-      detailParams["ok"] = "应用改动";
-      detailParams["dummy"] = "go_group_2";
+
       // 如果不可装备物品要处理，则这里入仓后还要查询下这部分物品进行处理
       if (dealWithUnequipable in placeMap) {
         detailParams["item_3location"] = "tr_none";
         detailParams["item_3usage_item"] = "no";
       }
-      // console.log(detailParams);
+      // //console.log(detailParams);
 
       let result = await fetch(url, {
         headers: {
@@ -280,8 +302,8 @@ console.log("detailText",detailText);
         body: new URLSearchParams(Object.entries(detailParams)).toString(),
       });
       let lastResult = await result.text();
-      console.log("text",lastResult);
-      if (hero == "ReimuMustDie") console.log(lastResult);
+      ////console.log("text",lastResult);
+      if (hero == "ReimuMustDie") //console.log(lastResult);
 
       if (dealWithUnequipable in placeMap) {
         detailJq = $(lastResult);
@@ -307,11 +329,11 @@ console.log("detailText",detailText);
           body: new URLSearchParams(Object.entries(detailParams)).toString(),
         });
         lastResult = await result.text();
-        if (hero == "ReimuMustDie") console.log(lastResult);
+        if (hero == "ReimuMustDie"); //console.log(lastResult);
       }
     }
 
-    // console.log(await result.text());
+    // //console.log(await result.text());
     let current = 0;
     let total = 0;
     total = parseInt($("#tipsTotal").text());
