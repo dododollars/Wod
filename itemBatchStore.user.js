@@ -173,8 +173,8 @@
     let detailText = await detail.text();
     let detailJq = $(detailText);
     let $itemTable = detailJq.find("#item_3is_open+table:first");
-//console.log("detail",detail);
-//console.log("detailText",detailText);
+    //console.log("detail",detail);
+    //console.log("detailText",detailText);
     //console.log("$itemTable",$itemTable);
     //console.log("detailJq",detailJq);
     let $pages = $itemTable.find(
@@ -193,14 +193,8 @@
         .parent("select")
         .val("go_group_2");
       //console.log("$itemTable2",$itemTable);
-      
-      let $detailForm = detailJq.find('form[name="the_form"]');
-      let detailParams = $detailForm.parseForm();
-      //console.log("detailParams",detailParams);
-      detailParams["item_3usage_item"] = "yes";
-      detailParams["item_3group_item"] = "no";
-      detailParams["ok"] = "应用改动";
-      detailParams["dummy"] = "go_group_2";
+
+
       // ========== 新增：根据物品名称取消“放入团队仓库”勾选（数量限制） ==========
       const dataStr = localStorage.getItem("storeAllExcludeList");
       let list = [];
@@ -211,80 +205,93 @@
       }
 
       const heroEntry = list.find((e) => e.hero === hero);
-      const rawExclude = heroEntry && Array.isArray(heroEntry.item) ? heroEntry.item : [];
+      const keepRule = heroEntry && Array.isArray(heroEntry.item) ? heroEntry.item : [];
+      console.log(hero, "的keepRule", keepRule);
+      if (keepRule && keepRule.length > 0) {
 
-      if (rawExclude && rawExclude.length > 0) {
-        // 规则：名称精确匹配，数量为需“保留在背包”的总数量上限
-        const ruleMap = {};
-        for (const def of rawExclude) {
-          if (!def) continue;
-          const [rawName, rawQty] = String(def).split("|");
-          const key = (rawName || "").trim();
+        // 按规则字符串，精确匹配物品名，将部分从 go_group_2 改为 -go_lager
+        // 规则格式："物品名|数量"；例如："卡罗先活力护符|5"
+        for (let i = 0; i < keepRule.length; i++) {
+          const keepRuleStr = keepRule[i];
+          if (typeof keepRuleStr === "string" && keepRuleStr.trim()) {
 
-          if (!key) continue;
-          const qtyParsed = Number.parseInt((rawQty || "").trim(), 10);
-          const limit = Number.isFinite(qtyParsed) && qtyParsed >= 0 ? qtyParsed : Number.POSITIVE_INFINITY;
-          // 去重：同名仅保留一条（界面已覆盖更新，这里兜底）
-          // 这里日志打印分割后的物品名跟数量
-          console.log(`[storeAllExcludeList] 物品名-上限数量:`, key, limit);
-          ruleMap[key] = { limit, used: 0 };
-        }
 
-        // 使用原生 DOM 提升速度（基于 detailJq 的上下文）
-        const itemRows = $itemTable[0]?.querySelectorAll("tr");
-        if (itemRows && Object.keys(ruleMap).length > 0) {
-          for (let i = 0; i < itemRows.length; i++) {
-            const row = itemRows[i];
-            const nameLink = row.querySelector('a[href*="item_instance_id"]');
-            if (!nameLink) continue;
+            console.log("keepRuleStr", keepRuleStr);
+            try {
+              const [ruleNameRaw, ruleLimitRaw] = keepRuleStr.split("|");
+              const ruleItemName = (ruleNameRaw || "").trim();
+              const parsedLimit = Number.parseInt((ruleLimitRaw || "").trim(), 10);
+              const keepLimit = Number.isFinite(parsedLimit) && parsedLimit >= 0 ? parsedLimit : 0;
 
-            const itemName = nameLink.textContent.trim(); // 精确匹配避免“A包含B”造成重复
-            console.log("itemName",itemName);
-            const rule = ruleMap[itemName];
-            if (!rule) continue;
+              if (ruleItemName) {
+                // 收集所有精确匹配的行，提取 (x/y) 的 x
+                const matches = [];
+                $itemTable.find("tr").each(function () {
+                  const $row = $(this);
+                  const $nameLink = $row.find('a[href*="item_instance_id"]').first();
+                  if ($nameLink.length === 0) return;
+                  const nameText = ($nameLink.text() || "").trim();
+                  if (nameText !== ruleItemName) return; // 精确匹配
 
-            // 默认数量为1；若单元格文本中存在形如 (x/y) 则取 x
-            let unit = 1;
-            const nameCell = nameLink.closest("td");
-            if (nameCell) {
-              const cellText = nameCell.textContent.replace(/\s+/g, " ").trim();
-              const m = cellText.match(/\((\d+)\/(\d+)\)/);
-              if (m) {
-                const v = parseInt(m[1], 10);
-                if (Number.isFinite(v) && v > 0) unit = v;
-              }
-            }
+                  const $nameCell = $nameLink.closest("td");
+                  let unit = 1; // 默认数量 1
+                  if ($nameCell && $nameCell.length) {
+                    const cellText = ($nameCell.text() || "").replace(/\s+/g, " ").trim();
+                    const m = cellText.match(/\((\d+)\/(\d+)\)/);
+                    if (m) {
+                      const v = parseInt(m[1], 10); // 取 x
+                      if (Number.isFinite(v) && v > 0) unit = v;
+                    }
+                  }
 
-            // 只处理 limit 不为0 的情况
-            // INSERT_YOUR_CODE
-            if (rule.limit === 0) {
-              // 如果limit为0，取消勾选
-              const check = row.querySelector('input[name^="SetGrpItem["]');
-              if (check && check.checked) {
-                check.checked = false;
-              }
-              continue;
-            }
-            if (rule.limit !== 0) {
-              // 已达上限则不再取消勾选；避免超额时也不取消该行（不能部分选择）
-              if (rule.used >= rule.limit) continue;
-              // INSERT_YOUR_CODE
-              if (rule.used < rule.limit) {
-                const check = row.querySelector('input[name^="SetGrpItem["]');
-                if (check && check.checked) {
-                  check.checked = false;
-                  rule.used += unit;
+                  const $select = $row.find('select[name^="EquipItem["]');
+                  if ($select.length) {
+                    matches.push({ $row, $select, unit });
+                  }
+                });
+
+                // 按 x 从小到大排序
+                matches.sort((a, b) => a.unit - b.unit);
+
+                let sumNum = 0;
+                if (keepLimit === 0) {
+                  // 限制为 0：忽视 sumNum，全部改为 -go_lager
+                  matches.forEach(({ $select, $row, unit }) => {
+                    const prev = $select.val();
+                    $select.val("-go_lager");
+                    //console.log(`[设定] ${ruleItemName}|0 -> 全部入仓`);
+                  });
+                } else {
+                  // 逐个累加 x，直到达到 keepLimit；达到或超过后，其余保持 go_group_2
+                  for (let i = 0; i < matches.length; i++) {
+                    const { $select, unit } = matches[i];
+                    if (sumNum < keepLimit) {
+                      const prev = $select.val();
+                      $select.val("-go_lager"); // 改为普通仓库，以便"保留在背包"的数量优先不送团仓
+                      sumNum += unit;
+                      //console.log(`[设定] ${ruleItemName}|${keepLimit} -> 改为 -go_lager | x=${unit} | sum=${sumNum}/${keepLimit} | 原值=${prev}`);
+                    } else {
+                      // 已经达到或超过限制，保持 go_group_2
+                      console.log(`[设定] ${ruleItemName}|${keepLimit} -> u数=${unit}放入团仓 | 仓库u数=${sumNum}/${keepLimit}`);
+                    }
+                  }
                 }
               }
-              
+            } catch (err) {
+              console.error("应用 keepRuleStr 失败:", err);
             }
           }
         }
-        
-        
+
       }
       // ========================================================
-
+      let $detailForm = detailJq.find('form[name="the_form"]');
+      let detailParams = $detailForm.parseForm();
+      //console.log("detailParams",detailParams);
+      detailParams["item_3usage_item"] = "yes";
+      detailParams["item_3group_item"] = "no";
+      detailParams["ok"] = "应用改动";
+      detailParams["dummy"] = "go_group_2";
       // 如果不可装备物品要处理，则这里入仓后还要查询下这部分物品进行处理
       if (dealWithUnequipable in placeMap) {
         detailParams["item_3location"] = "tr_none";
@@ -305,32 +312,32 @@
       ////console.log("text",lastResult);
       if (hero == "ReimuMustDie") //console.log(lastResult);
 
-      if (dealWithUnequipable in placeMap) {
-        detailJq = $(lastResult);
-        $itemTable = detailJq.find("#item_3is_open+table:first");
-        $itemTable
-          .find('select[name^="EquipItem["] option[value="go_group_2"]')
-          .parent("select")
-          .val(placeMap[dealWithUnequipable]);
-        $detailForm = detailJq.find('form[name="the_form"]');
-        detailParams = $detailForm.parseForm();
-        detailParams["item_3usage_item"] = "yes";
-        detailParams["item_3group_item"] = "no";
-        detailParams["ok"] = "应用改动";
-        detailParams["dummy"] = "go_group_2";
-        detailParams["item_3location"] = "";
-        result = await fetch(url, {
-          headers: {
-            accept:
-              "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
-            "content-type": "application/x-www-form-urlencoded",
-          },
-          method: "POST",
-          body: new URLSearchParams(Object.entries(detailParams)).toString(),
-        });
-        lastResult = await result.text();
-        if (hero == "ReimuMustDie"); //console.log(lastResult);
-      }
+        if (dealWithUnequipable in placeMap) {
+          detailJq = $(lastResult);
+          $itemTable = detailJq.find("#item_3is_open+table:first");
+          $itemTable
+            .find('select[name^="EquipItem["] option[value="go_group_2"]')
+            .parent("select")
+            .val(placeMap[dealWithUnequipable]);
+          $detailForm = detailJq.find('form[name="the_form"]');
+          detailParams = $detailForm.parseForm();
+          detailParams["item_3usage_item"] = "yes";
+          detailParams["item_3group_item"] = "no";
+          detailParams["ok"] = "应用改动";
+          detailParams["dummy"] = "go_group_2";
+          detailParams["item_3location"] = "";
+          result = await fetch(url, {
+            headers: {
+              accept:
+                "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+              "content-type": "application/x-www-form-urlencoded",
+            },
+            method: "POST",
+            body: new URLSearchParams(Object.entries(detailParams)).toString(),
+          });
+          lastResult = await result.text();
+          if (hero == "ReimuMustDie"); //console.log(lastResult);
+        }
     }
 
     // //console.log(await result.text());
@@ -387,18 +394,18 @@
     }
   };
 
-const addBatchBtn = () => {
-  const $groupDiv = $(".gadget.groupmsg.lang-cn");
-  if (!$groupDiv.length) return;
+  const addBatchBtn = () => {
+    const $groupDiv = $(".gadget.groupmsg.lang-cn");
+    if (!$groupDiv.length) return;
 
-  const dealWithUnequipable = localStorage.getItem("DEAL_WITH_UNEQUIPABLE") ?? "";
+    const dealWithUnequipable = localStorage.getItem("DEAL_WITH_UNEQUIPABLE") ?? "";
 
-  const $container = $('<div id="batchWarehouseDiv" style="display:flex;flex-direction:column;gap:5px;"></div>');
+    const $container = $('<div id="batchWarehouseDiv" style="display:flex;flex-direction:column;gap:5px;"></div>');
 
-  const $fetchBtn = $('<button name="fetchAll" class="button clickable" title="将所有激活角色的背包收取后不做其他操作，靠玩家自己有空时清理">激活角色背包收取</button>');
-  const $storeBtn = $('<button name="storeAll" class="button clickable" title="将所有激活角色的非团队物品耗材放入团队仓库">激活角色耗材入仓</button>');
+    const $fetchBtn = $('<button name="fetchAll" class="button clickable" title="将所有激活角色的背包收取后不做其他操作，靠玩家自己有空时清理">激活角色背包收取</button>');
+    const $storeBtn = $('<button name="storeAll" class="button clickable" title="将所有激活角色的非团队物品耗材放入团队仓库">激活角色耗材入仓</button>');
 
-  $container.append(`
+    $container.append(`
     <div style="padding: 0 3px;">
       <span>不可装备物品放哪</span><br>
       <label><input type="radio" name="deal_with_unequipable" ${dealWithUnequipable === "" ? "checked" : ""} value="">无视</label>
@@ -407,7 +414,7 @@ const addBatchBtn = () => {
     </div>
   `);
 
-  const $extraDiv = $(`
+    const $extraDiv = $(`
     <div style="padding: 0 5px; display:flex; flex-direction: column; gap:5px;">
       <select id="heroSelect" style="width:100%;"></select>
       <select id="excludeItemList" style="width:100%;"></select>
@@ -421,105 +428,105 @@ const addBatchBtn = () => {
 
 
 
-  $groupDiv.before($container);
-  $fetchBtn.click(() => allToPublic(true)).appendTo($container);
-  $storeBtn.click(() => allToPublic(false)).appendTo($container);
+    $groupDiv.before($container);
+    $fetchBtn.click(() => allToPublic(true)).appendTo($container);
+    $storeBtn.click(() => allToPublic(false)).appendTo($container);
     $container.append($extraDiv);
-  // 保存单选
-  $(document).on("change", 'input[name="deal_with_unequipable"]', function () {
-    localStorage.setItem("DEAL_WITH_UNEQUIPABLE", this.value);
-  });
+    // 保存单选
+    $(document).on("change", 'input[name="deal_with_unequipable"]', function () {
+      localStorage.setItem("DEAL_WITH_UNEQUIPABLE", this.value);
+    });
 
-  // 填充 heroSelect
-  const heroDataStr = localStorage.getItem("wod_entry_hero");
-  let heroData = [];
-  try { heroData = heroDataStr ? JSON.parse(heroDataStr) : []; } catch(e){ console.error(e); }
+    // 填充 heroSelect
+    const heroDataStr = localStorage.getItem("wod_entry_hero");
+    let heroData = [];
+    try { heroData = heroDataStr ? JSON.parse(heroDataStr) : []; } catch (e) { console.error(e); }
 
-  const $heroSelect = $("#heroSelect");
-  const $excludeItemList = $("#excludeItemList");
-  const $excludeItemName = $("#excludeItemName");
+    const $heroSelect = $("#heroSelect");
+    const $excludeItemList = $("#excludeItemList");
+    const $excludeItemName = $("#excludeItemName");
 
-  $heroSelect.empty().append('<option value="">选择角色...</option>');
-  heroData.forEach(h => $heroSelect.append(`<option value="${h.name}">${h.name}</option>`));
+    $heroSelect.empty().append('<option value="">选择角色...</option>');
+    heroData.forEach(h => $heroSelect.append(`<option value="${h.name}">${h.name}</option>`));
 
-  const getStoreAllExcludeList = () => {
-    const str = localStorage.getItem("storeAllExcludeList");
-    try { return str ? JSON.parse(str) : []; } catch { return []; }
-  };
+    const getStoreAllExcludeList = () => {
+      const str = localStorage.getItem("storeAllExcludeList");
+      try { return str ? JSON.parse(str) : []; } catch { return []; }
+    };
 
-  const saveStoreAllExcludeList = (list) => {
-    localStorage.setItem("storeAllExcludeList", JSON.stringify(list));
-  };
+    const saveStoreAllExcludeList = (list) => {
+      localStorage.setItem("storeAllExcludeList", JSON.stringify(list));
+    };
 
-  // 刷新排除项下拉
-  const refreshItemList = () => {
-    const heroName = ($heroSelect.val() || "").toString().trim();
-    $excludeItemList.empty();
+    // 刷新排除项下拉
+    const refreshItemList = () => {
+      const heroName = ($heroSelect.val() || "").toString().trim();
+      $excludeItemList.empty();
 
-    if (!heroName) {
-      $excludeItemList.append('<option value="" disabled selected>请选择上方角色</option>');
-      return;
+      if (!heroName) {
+        $excludeItemList.append('<option value="" disabled selected>请选择上方角色</option>');
+        return;
+      }
+
+      const list = getStoreAllExcludeList();
+      const heroEntry = list.find(e => e.hero === heroName);
+      if (heroEntry && Array.isArray(heroEntry.item) && heroEntry.item.length) {
+        heroEntry.item.forEach(it => $excludeItemList.append(`<option value="${it}">${it}</option>`));
+      } else {
+        $excludeItemList.append('<option value="" disabled selected>无排除项</option>');
+      }
+    };
+
+    // 切换英雄时立即刷新（兼容部分浏览器：input + change）
+    $heroSelect.on("input change", refreshItemList);
+
+    // 初始默认选中第一个英雄并刷新一次
+    if (heroData.length) {
+      $heroSelect.val(heroData[0].name);
     }
+    refreshItemList();
 
-    const list = getStoreAllExcludeList();
-    const heroEntry = list.find(e => e.hero === heroName);
-    if (heroEntry && Array.isArray(heroEntry.item) && heroEntry.item.length) {
-      heroEntry.item.forEach(it => $excludeItemList.append(`<option value="${it}">${it}</option>`));
-    } else {
-      $excludeItemList.append('<option value="" disabled selected>无排除项</option>');
-    }
+    // 添加
+    $("#btnItemAdd").on("click", () => {
+      const heroName = ($heroSelect.val() || "").toString().trim();
+      if (!heroName) return alert("请先选择英雄");
+      const val = ($excludeItemName.val() || "").toString().trim();
+      if (!val) return;
+
+      const list = getStoreAllExcludeList();
+      let heroEntry = list.find(e => e.hero === heroName);
+      if (!heroEntry) { heroEntry = { hero: heroName, item: [] }; list.push(heroEntry); }
+
+      const [name, num] = val.split("|");
+      const key = (name || "").trim();
+      const qty = (num || "0").trim();
+
+      const idx = heroEntry.item.findIndex(it => it.split("|")[0] === key);
+      if (idx >= 0) heroEntry.item[idx] = `${key}|${qty}`;
+      else heroEntry.item.push(`${key}|${qty}`);
+
+      saveStoreAllExcludeList(list);
+      $excludeItemName.val("");
+      refreshItemList();
+    });
+
+    // 删除（单选下拉，删除当前选中项）
+    $("#btnItemDelete").on("click", () => {
+      const heroName = ($heroSelect.val() || "").toString().trim();
+      if (!heroName) return alert("请先选择英雄");
+
+      const selected = $excludeItemList.val();
+      if (!selected) return;
+
+      const list = getStoreAllExcludeList();
+      const heroEntry = list.find(e => e.hero === heroName);
+      if (!heroEntry) return;
+
+      heroEntry.item = heroEntry.item.filter(it => it !== selected);
+      saveStoreAllExcludeList(list);
+      refreshItemList();
+    });
   };
-
-  // 切换英雄时立即刷新（兼容部分浏览器：input + change）
-  $heroSelect.on("input change", refreshItemList);
-
-  // 初始默认选中第一个英雄并刷新一次
-  if (heroData.length) {
-    $heroSelect.val(heroData[0].name);
-  }
-  refreshItemList();
-
-  // 添加
-  $("#btnItemAdd").on("click", () => {
-    const heroName = ($heroSelect.val() || "").toString().trim();
-    if (!heroName) return alert("请先选择英雄");
-    const val = ($excludeItemName.val() || "").toString().trim();
-    if (!val) return;
-
-    const list = getStoreAllExcludeList();
-    let heroEntry = list.find(e => e.hero === heroName);
-    if (!heroEntry) { heroEntry = {hero: heroName, item: []}; list.push(heroEntry); }
-
-    const [name, num] = val.split("|");
-    const key = (name || "").trim();
-    const qty = (num || "0").trim();
-
-    const idx = heroEntry.item.findIndex(it => it.split("|")[0] === key);
-    if (idx >= 0) heroEntry.item[idx] = `${key}|${qty}`;
-    else heroEntry.item.push(`${key}|${qty}`);
-
-    saveStoreAllExcludeList(list);
-    $excludeItemName.val("");
-    refreshItemList();
-  });
-
-  // 删除（单选下拉，删除当前选中项）
-  $("#btnItemDelete").on("click", () => {
-    const heroName = ($heroSelect.val() || "").toString().trim();
-    if (!heroName) return alert("请先选择英雄");
-
-    const selected = $excludeItemList.val();
-    if (!selected) return;
-
-    const list = getStoreAllExcludeList();
-    const heroEntry = list.find(e => e.hero === heroName);
-    if (!heroEntry) return;
-
-    heroEntry.item = heroEntry.item.filter(it => it !== selected);
-    saveStoreAllExcludeList(list);
-    refreshItemList();
-  });
-};
 
 
 
@@ -627,317 +634,317 @@ const addBatchBtn = () => {
   var WOD;
   (() => {
     var t = {
-        138: (t, e, s) => {
-          const i = s(90),
-            n = {};
-          i.keys().map((t) => {
-            const e = t.split(".js")[0].split("/")[1];
-            n[e] = i(t);
-          }),
-            (window.WOD = n);
-          let r = location.href;
-          r.includes("world-of-dungeons") &&
-            r.includes("skills.php") &&
-            n.SkillMap.getOnt().save(),
-            (t.exports = n);
-        },
-        593: (t) => {
-          let e;
-          class s {
-            constructor() {
-              (this._ = $(".hero_full")),
-                (this.name = this._.find(".font_Hero_Name").text()),
-                (this.title = this._.find(".font_Hero_Title").text()),
-                (this.class = this._.find(".font_Hero_Class").text()),
-                (this.race = this._.find(".font_Hero_Race").text()),
-                (this.level = this._.find(".font_Hero_Level").text());
-            }
-            getName() {
-              return this.name;
-            }
-            getTitle() {
-              return this.title;
-            }
-            getClass() {
-              return this.class;
-            }
-            getRace() {
-              return this.race;
-            }
-            getLevel() {
-              return this.level;
-            }
-          }
-          (s.getOnt = () => (e || (e = new s()), e)), (t.exports = s);
-        },
-        380: (t) => {
-          "use strict";
-          const e = {
-            CLASSES: 0,
-            RACE: 1,
-            POSITION: 2,
-            UNIQUE: 3,
-            ATTRIBUTE: 4,
-            ITEM_TYPE: 5,
-            SKILL: 6,
-            USE_SKILL: 7,
-            SKILL_TYPE: 8,
-            COORDINATE: 9,
-            INLAY: 10,
-            REQUIRE_ATTRIBUTE: 11,
-          };
-          let s;
-          class i {
-            constructor() {
-              (this.lib = this.__getLib()),
-                this.__init(),
-                (this._selects = $(".search_container select")),
-                this.setSkillSelectPriority(),
-                (this.searchButton = $("a.button")),
-                (this.consumable = $("input[name=item_3usage_item]")),
-                (this.group = $("input[name=item_3group_item]")),
-                (this.selects = this.__select2Init()),
-                (this.attrRequire = $("input[name=item_3attribute_value]")),
-                (this.level = $("input[name=item_3hero_level]")),
-                (this.levelSelect = $("input[name=item_3hero_level_enabled]")),
-                (this.minCondition = $("input[name=item_3item_condition]")),
-                (this.maxCondition = $("input[name=item_3item_conditionMax]"));
-            }
-            __init() {
-              this.__checkJquery(),
-                // this.__checkSelect2(),
-                this.__checkGM();
-            }
-            __checkJquery() {
-              this.__check(() => {
-                $;
-              }, "无法访问jquery，请引入该库或联系该脚本的开发者！");
-            }
-            __checkSelect2() {
-              this.__check(() => {
-                $().select2();
-              }, "无法访问select2，请引入该库或联系该脚本的开发者！");
-            }
-            __checkGM() {
-              //                    this.__check((()=>{
-              //                        GM_addStyle
-              //                    }
-              //                    ), "无法访问GM_addStyle，请打开或联系该脚本的开发者！"),
-              //                    this.__check((()=>{
-              //                        GM_getResourceText
-              //                    }
-              //                    ), "无法访问GM_getResourceText，请打开或联系该脚本的开发者！")
-            }
-            __check(t, e) {
-              try {
-                t();
-              } catch (t) {
-                alert(e);
-              }
-            }
-            __getLib() {
-              let t = window.localStorage;
-              return (
-                t || alert("无法访问浏览器数据库，请更换或升级浏览器！"), t
-              );
-            }
-            __select2Init() {
-              const t = Array.from(this._selects),
-                e = $(t[0]),
-                s = e.css("background-color"),
-                i = e.css("color"),
-                n = e.css("border"),
-                r = e.css("border-radius"),
-                o = t.map((t) => {
-                  const e = $(t);
-                  let s = $(e[0].options[0]).attr("value");
-                  return (
-                    s || (s = 0),
-                    // e
-                    //   .select2({
-                    //     placeholder: {
-                    //       id: s,
-                    //     },
-                    //     allowClear: !0,
-                    //   })
-                    //   .on("select2:unselecting", function () {
-                    //     $(this).data("unselecting", !0);
-                    //   })
-                    //   .on("select2:opening", function (t) {
-                    //     $(this).data("unselecting") &&
-                    //       ($(this).removeData("unselecting"), t.preventDefault());
-                    //   }),
-                    e
-                  );
-                });
-              return (
-                // GM_addStyle(
-                //   `\n\t\t\t.select2-container .select2-selection--single {\n\t\t\t\tbackground-color: ${s};\n\t\t\t\tborder: ${n};\n\t\t\t\tborderRadius: ${r};\n\t\t\t}\n\t\t\t.select2-dropdown {\n\t\t\t\tbackground-color: ${s};\n\t\t\t\tcolor: ${i};\n\t\t\t\tborder: ${n};\n\t\t\t}\n\t\t\t.select2-selection {\n\t\t\t\tbackground-color: ${s};\n\t\t\t}\n\t\t\t.select2-container--default .select2-selection--single .select2-selection__rendered {\n\t\t\t\tcolor: ${i};\n\t\t\t}\n\t\t\t`
-                // ),
-                // GM_addStyle(
-                //   "\n\t\t::-webkit-scrollbar {/*滚动条整体样式*/\n\t\t\twidth: 4px;     /*高宽分别对应横竖滚动条的尺寸*/\n\t\t\theight: 4px;\n\t\t}\n\t\t::-webkit-scrollbar-thumb {/*滚动条里面小方块*/\n\t\t\tborder-radius: 5px;\n\t\t\t-webkit-box-shadow: inset 0 0 5px rgba(0,0,0,0.2);\n\t\t\tbackground: rgba(0,0,0,0.2);\n\t\t}\n\t\t::-webkit-scrollbar-track {/*滚动条里面轨道*/\n\t\t\t-webkit-box-shadow: inset 0 0 5px rgba(0,0,0,0.2);\n\t\t\tborder-radius: 0;\n\t\t\tbackground: rgba(0,0,0,0.1);\n\t\t}\n\t\t"
-                // ),
-                o
-              );
-            }
-            setSkillSelectPriority() {
-              const t = Array.from(this._selects),
-                s = t[e.USE_SKILL],
-                i = t[e.SKILL],
-                n = $(i.options[0]);
-              Array.from(s.options).map((t) => {
-                Array.from(i.options).filter((e) => {
-                  if (t.innerHTML === e.innerHTML && "&nbsp;" !== t.innerHTML) {
-                    const t = $("<option/>");
-                    return (
-                      t.addClass($(e).className),
-                      t.val($(e).val()),
-                      t.text($(e).text()),
-                      $(i).remove($(e)),
-                      n.after(t),
-                      !0
-                    );
-                  }
-                });
-              });
-            }
-            clear(t = !1) {
-              Object.keys(e).map((t) => {
-                this.setSelect(e[t]);
-              }),
-                this.setConsumable(),
-                this.setGroup(),
-                this.setRequireAttribute(),
-                this.setLevel(),
-                this.setMaxCondition(),
-                this.setMinCondition(),
-                t && this.search();
-            }
-            search() {
-              this.searchButton.click();
-            }
-            setClasses(t) {
-              return this.setSelect(e.CLASSES, t);
-            }
-            setRace(t) {
-              return this.setSelect(e.RACE, t);
-            }
-            setPosition(t) {
-              return this.setSelect(e.POSITION, t);
-            }
-            setUnique(t) {
-              return this.setSelect(e.UNIQUE, t);
-            }
-            setAttribute(t) {
-              return this.setSelect(e.ATTRIBUTE, t);
-            }
-            setItemType(t) {
-              return this.setSelect(e.ITEM_TYPE, t);
-            }
-            setSkill(t) {
-              return this.setSelect(e.SKILL, t);
-            }
-            setUseSkill(t) {
-              return this.setSelect(e.USE_SKILL, t);
-            }
-            setSkillType(t) {
-              return this.setSelect(e.SKILL_TYPE, t);
-            }
-            setCoordinate(t) {
-              return this.setSelect(e.COORDINATE, t);
-            }
-            setInlay(t) {
-              return this.setSelect(e.INLAY, t);
-            }
-            setRequireAttribute(t = "eff_at_st", s = "") {
-              return (
-                (this.attrRequire.value = s),
-                this.setSelect(e.REQUIRE_ATTRIBUTE, t)
-              );
-            }
-            setLevel(t = !1, e = 1) {
-              t && this.levelSelect.click(), (this.level.value = e);
-            }
-            setMinCondition(t = 0) {
-              this.minCondition[t].click();
-            }
-            setMaxCondition(t = 6) {
-              this.maxCondition[t].click();
-            }
-            setConsumable(t = 0) {
-              this.consumable[t].click();
-            }
-            setGroup(t = 0) {
-              this.group[t].click();
-            }
-            setSelect(t = 0, e = 0) {
-              const s = $(this.selects[t]);
-              return s.val(e).trigger("change"), s;
-            }
-          }
-          (i.getOnt = () => (s || (s = new i()), s)),
-            (i.SELECT_ITEM = e),
-            (i.CLASSES = {
-              ADVENTURER: 22,
-              MAGES_APPRENTICE: 23,
-              ARCHER: 21,
-              BARBARIAN: 2,
-              MAGE: 59,
-              ALCHEMIST: 30,
-              BARD: 7,
-              DRIFTER: 17,
-              GLADIATOR: 1,
-              HUNTER: 4,
-              JUGGLER: 71,
-              KNIGHT: 68,
-              PALADIN: 67,
-              PRIEST: 69,
-              SCHOLAR: 3,
-              SHAMAN: 11,
-              NECROMANCER: 26,
-              DANCER: 18,
-              ALL: 0,
-            }),
-            (i.RACE = {
-              BORDER_LANDER: 6,
-              GNOME: 14,
-              HALFING: 13,
-              HILL_DWARF: 15,
-              KERASI: 20,
-              MAG_MOR_ELF: 12,
-              TIRAM_AG_ELF: 8,
-              WOODLANDE: 10,
-              DINTURAN: 5,
-              MOUNTAIN_DWARF: 16,
-              RASHANI: 19,
-              ALL: 0,
-            }),
-            (t.exports = i);
-        },
-        90: (t, e, s) => {
-          var i = {
-            "./Hero.js": 593,
-            "./SelectBox.js": 380,
-          };
-          function n(t) {
-            var e = r(t);
-            return s(e);
-          }
-          function r(t) {
-            if (!s.o(i, t)) {
-              var e = new Error("Cannot find module '" + t + "'");
-              throw ((e.code = "MODULE_NOT_FOUND"), e);
-            }
-            return i[t];
-          }
-          (n.keys = function () {
-            return Object.keys(i);
-          }),
-            (n.resolve = r),
-            (t.exports = n),
-            (n.id = 90);
-        },
+      138: (t, e, s) => {
+        const i = s(90),
+          n = {};
+        i.keys().map((t) => {
+          const e = t.split(".js")[0].split("/")[1];
+          n[e] = i(t);
+        }),
+          (window.WOD = n);
+        let r = location.href;
+        r.includes("world-of-dungeons") &&
+          r.includes("skills.php") &&
+          n.SkillMap.getOnt().save(),
+          (t.exports = n);
       },
+      593: (t) => {
+        let e;
+        class s {
+          constructor() {
+            (this._ = $(".hero_full")),
+              (this.name = this._.find(".font_Hero_Name").text()),
+              (this.title = this._.find(".font_Hero_Title").text()),
+              (this.class = this._.find(".font_Hero_Class").text()),
+              (this.race = this._.find(".font_Hero_Race").text()),
+              (this.level = this._.find(".font_Hero_Level").text());
+          }
+          getName() {
+            return this.name;
+          }
+          getTitle() {
+            return this.title;
+          }
+          getClass() {
+            return this.class;
+          }
+          getRace() {
+            return this.race;
+          }
+          getLevel() {
+            return this.level;
+          }
+        }
+        (s.getOnt = () => (e || (e = new s()), e)), (t.exports = s);
+      },
+      380: (t) => {
+        "use strict";
+        const e = {
+          CLASSES: 0,
+          RACE: 1,
+          POSITION: 2,
+          UNIQUE: 3,
+          ATTRIBUTE: 4,
+          ITEM_TYPE: 5,
+          SKILL: 6,
+          USE_SKILL: 7,
+          SKILL_TYPE: 8,
+          COORDINATE: 9,
+          INLAY: 10,
+          REQUIRE_ATTRIBUTE: 11,
+        };
+        let s;
+        class i {
+          constructor() {
+            (this.lib = this.__getLib()),
+              this.__init(),
+              (this._selects = $(".search_container select")),
+              this.setSkillSelectPriority(),
+              (this.searchButton = $("a.button")),
+              (this.consumable = $("input[name=item_3usage_item]")),
+              (this.group = $("input[name=item_3group_item]")),
+              (this.selects = this.__select2Init()),
+              (this.attrRequire = $("input[name=item_3attribute_value]")),
+              (this.level = $("input[name=item_3hero_level]")),
+              (this.levelSelect = $("input[name=item_3hero_level_enabled]")),
+              (this.minCondition = $("input[name=item_3item_condition]")),
+              (this.maxCondition = $("input[name=item_3item_conditionMax]"));
+          }
+          __init() {
+            this.__checkJquery(),
+              // this.__checkSelect2(),
+              this.__checkGM();
+          }
+          __checkJquery() {
+            this.__check(() => {
+              $;
+            }, "无法访问jquery，请引入该库或联系该脚本的开发者！");
+          }
+          __checkSelect2() {
+            this.__check(() => {
+              $().select2();
+            }, "无法访问select2，请引入该库或联系该脚本的开发者！");
+          }
+          __checkGM() {
+            //                    this.__check((()=>{
+            //                        GM_addStyle
+            //                    }
+            //                    ), "无法访问GM_addStyle，请打开或联系该脚本的开发者！"),
+            //                    this.__check((()=>{
+            //                        GM_getResourceText
+            //                    }
+            //                    ), "无法访问GM_getResourceText，请打开或联系该脚本的开发者！")
+          }
+          __check(t, e) {
+            try {
+              t();
+            } catch (t) {
+              alert(e);
+            }
+          }
+          __getLib() {
+            let t = window.localStorage;
+            return (
+              t || alert("无法访问浏览器数据库，请更换或升级浏览器！"), t
+            );
+          }
+          __select2Init() {
+            const t = Array.from(this._selects),
+              e = $(t[0]),
+              s = e.css("background-color"),
+              i = e.css("color"),
+              n = e.css("border"),
+              r = e.css("border-radius"),
+              o = t.map((t) => {
+                const e = $(t);
+                let s = $(e[0].options[0]).attr("value");
+                return (
+                  s || (s = 0),
+                  // e
+                  //   .select2({
+                  //     placeholder: {
+                  //       id: s,
+                  //     },
+                  //     allowClear: !0,
+                  //   })
+                  //   .on("select2:unselecting", function () {
+                  //     $(this).data("unselecting", !0);
+                  //   })
+                  //   .on("select2:opening", function (t) {
+                  //     $(this).data("unselecting") &&
+                  //       ($(this).removeData("unselecting"), t.preventDefault());
+                  //   }),
+                  e
+                );
+              });
+            return (
+              // GM_addStyle(
+              //   `\n\t\t\t.select2-container .select2-selection--single {\n\t\t\t\tbackground-color: ${s};\n\t\t\t\tborder: ${n};\n\t\t\t\tborderRadius: ${r};\n\t\t\t}\n\t\t\t.select2-dropdown {\n\t\t\t\tbackground-color: ${s};\n\t\t\t\tcolor: ${i};\n\t\t\t\tborder: ${n};\n\t\t\t}\n\t\t\t.select2-selection {\n\t\t\t\tbackground-color: ${s};\n\t\t\t}\n\t\t\t.select2-container--default .select2-selection--single .select2-selection__rendered {\n\t\t\t\tcolor: ${i};\n\t\t\t}\n\t\t\t`
+              // ),
+              // GM_addStyle(
+              //   "\n\t\t::-webkit-scrollbar {/*滚动条整体样式*/\n\t\t\twidth: 4px;     /*高宽分别对应横竖滚动条的尺寸*/\n\t\t\theight: 4px;\n\t\t}\n\t\t::-webkit-scrollbar-thumb {/*滚动条里面小方块*/\n\t\t\tborder-radius: 5px;\n\t\t\t-webkit-box-shadow: inset 0 0 5px rgba(0,0,0,0.2);\n\t\t\tbackground: rgba(0,0,0,0.2);\n\t\t}\n\t\t::-webkit-scrollbar-track {/*滚动条里面轨道*/\n\t\t\t-webkit-box-shadow: inset 0 0 5px rgba(0,0,0,0.2);\n\t\t\tborder-radius: 0;\n\t\t\tbackground: rgba(0,0,0,0.1);\n\t\t}\n\t\t"
+              // ),
+              o
+            );
+          }
+          setSkillSelectPriority() {
+            const t = Array.from(this._selects),
+              s = t[e.USE_SKILL],
+              i = t[e.SKILL],
+              n = $(i.options[0]);
+            Array.from(s.options).map((t) => {
+              Array.from(i.options).filter((e) => {
+                if (t.innerHTML === e.innerHTML && "&nbsp;" !== t.innerHTML) {
+                  const t = $("<option/>");
+                  return (
+                    t.addClass($(e).className),
+                    t.val($(e).val()),
+                    t.text($(e).text()),
+                    $(i).remove($(e)),
+                    n.after(t),
+                    !0
+                  );
+                }
+              });
+            });
+          }
+          clear(t = !1) {
+            Object.keys(e).map((t) => {
+              this.setSelect(e[t]);
+            }),
+              this.setConsumable(),
+              this.setGroup(),
+              this.setRequireAttribute(),
+              this.setLevel(),
+              this.setMaxCondition(),
+              this.setMinCondition(),
+              t && this.search();
+          }
+          search() {
+            this.searchButton.click();
+          }
+          setClasses(t) {
+            return this.setSelect(e.CLASSES, t);
+          }
+          setRace(t) {
+            return this.setSelect(e.RACE, t);
+          }
+          setPosition(t) {
+            return this.setSelect(e.POSITION, t);
+          }
+          setUnique(t) {
+            return this.setSelect(e.UNIQUE, t);
+          }
+          setAttribute(t) {
+            return this.setSelect(e.ATTRIBUTE, t);
+          }
+          setItemType(t) {
+            return this.setSelect(e.ITEM_TYPE, t);
+          }
+          setSkill(t) {
+            return this.setSelect(e.SKILL, t);
+          }
+          setUseSkill(t) {
+            return this.setSelect(e.USE_SKILL, t);
+          }
+          setSkillType(t) {
+            return this.setSelect(e.SKILL_TYPE, t);
+          }
+          setCoordinate(t) {
+            return this.setSelect(e.COORDINATE, t);
+          }
+          setInlay(t) {
+            return this.setSelect(e.INLAY, t);
+          }
+          setRequireAttribute(t = "eff_at_st", s = "") {
+            return (
+              (this.attrRequire.value = s),
+              this.setSelect(e.REQUIRE_ATTRIBUTE, t)
+            );
+          }
+          setLevel(t = !1, e = 1) {
+            t && this.levelSelect.click(), (this.level.value = e);
+          }
+          setMinCondition(t = 0) {
+            this.minCondition[t].click();
+          }
+          setMaxCondition(t = 6) {
+            this.maxCondition[t].click();
+          }
+          setConsumable(t = 0) {
+            this.consumable[t].click();
+          }
+          setGroup(t = 0) {
+            this.group[t].click();
+          }
+          setSelect(t = 0, e = 0) {
+            const s = $(this.selects[t]);
+            return s.val(e).trigger("change"), s;
+          }
+        }
+        (i.getOnt = () => (s || (s = new i()), s)),
+          (i.SELECT_ITEM = e),
+          (i.CLASSES = {
+            ADVENTURER: 22,
+            MAGES_APPRENTICE: 23,
+            ARCHER: 21,
+            BARBARIAN: 2,
+            MAGE: 59,
+            ALCHEMIST: 30,
+            BARD: 7,
+            DRIFTER: 17,
+            GLADIATOR: 1,
+            HUNTER: 4,
+            JUGGLER: 71,
+            KNIGHT: 68,
+            PALADIN: 67,
+            PRIEST: 69,
+            SCHOLAR: 3,
+            SHAMAN: 11,
+            NECROMANCER: 26,
+            DANCER: 18,
+            ALL: 0,
+          }),
+          (i.RACE = {
+            BORDER_LANDER: 6,
+            GNOME: 14,
+            HALFING: 13,
+            HILL_DWARF: 15,
+            KERASI: 20,
+            MAG_MOR_ELF: 12,
+            TIRAM_AG_ELF: 8,
+            WOODLANDE: 10,
+            DINTURAN: 5,
+            MOUNTAIN_DWARF: 16,
+            RASHANI: 19,
+            ALL: 0,
+          }),
+          (t.exports = i);
+      },
+      90: (t, e, s) => {
+        var i = {
+          "./Hero.js": 593,
+          "./SelectBox.js": 380,
+        };
+        function n(t) {
+          var e = r(t);
+          return s(e);
+        }
+        function r(t) {
+          if (!s.o(i, t)) {
+            var e = new Error("Cannot find module '" + t + "'");
+            throw ((e.code = "MODULE_NOT_FOUND"), e);
+          }
+          return i[t];
+        }
+        (n.keys = function () {
+          return Object.keys(i);
+        }),
+          (n.resolve = r),
+          (t.exports = n),
+          (n.id = 90);
+      },
+    },
       e = {};
     function s(i) {
       var n = e[i];
