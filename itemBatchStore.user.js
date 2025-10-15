@@ -7,7 +7,7 @@
 // @match        http*://*.world-of-dungeons.org/*
 // @require      https://code.jquery.com/jquery-3.6.0.min.js
 // @modifier     DoDoDollars
-// @version      2023.05.07.1
+// @version      2025.10.15
 // @updateURL    https://github.com/dododollars/Wod/raw/refs/heads/main/itemBatchStore.user.js
 // @downloadURL  https://github.com/dododollars/Wod/raw/refs/heads/main/itemBatchStore.user.js
 // ==/UserScript==
