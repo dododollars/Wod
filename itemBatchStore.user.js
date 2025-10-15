@@ -8,8 +8,8 @@
 // @require      https://code.jquery.com/jquery-3.6.0.min.js
 // @modifier     DoDoDollars
 // @version      2023.05.07.1
-// @updateURL    https://gitee.com/christophero/wod-scripts/raw/master/wod/WoD%20%E7%89%A9%E5%93%81%E6%89%B9%E9%87%8F%E5%AD%98%E6%94%BE%E4%BB%93%E5%BA%93.user.js
-// @downloadURL  https://gitee.com/christophero/wod-scripts/raw/master/wod/WoD%20%E7%89%A9%E5%93%81%E6%89%B9%E9%87%8F%E5%AD%98%E6%94%BE%E4%BB%93%E5%BA%93.user.js
+// @updateURL    https://github.com/dododollars/Wod/raw/refs/heads/main/itemBatchStore.user.js
+// @downloadURL  https://github.com/dododollars/Wod/raw/refs/heads/main/itemBatchStore.user.js
 // ==/UserScript==
 
 (function () {
